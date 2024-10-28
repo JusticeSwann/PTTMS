@@ -25,7 +25,7 @@ class LocationService {
     try {
       return await _location.getLocation();
     } catch (e) {
-      print('Could not get current location: $e');
+      //print('Could not get current location: $e');
       return null;
     }
   }
