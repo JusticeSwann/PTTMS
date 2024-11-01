@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:pttms/screens/routes/views/routes_page.dart';
 import '../blocs/map_bloc.dart';
 import '../blocs/map_event.dart';
 import '../blocs/map_state.dart';
@@ -12,22 +13,22 @@ class MapPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return RepositoryProvider(
-      create: (context) => LocationRepository(),  // Inject the LocationRepository
+      create: (context) => LocationRepository(),  
       child: BlocProvider(
         create: (context) => MapBloc(
           locationRepository: context.read<LocationRepository>(),
-        )..add(LoadMap()),  // Trigger the LoadMap event on creation
+        )..add(LoadMap()),  
         child: Scaffold(
           body: BlocBuilder<MapBloc, MapState>(
             builder: (context, state) {
               if (state is MapLoading) {
                 return const Center(
-                  child: CircularProgressIndicator(),  // Show loading spinner
+                  child: CircularProgressIndicator(),  
                 );
               } else if (state is MapLoaded) {
                 return GoogleMap(
                   initialCameraPosition: CameraPosition(
-                    target: state.position,  // User's location
+                    target: state.position, 
                     zoom: 16,
                   ),
                   myLocationEnabled: true,
@@ -37,17 +38,27 @@ class MapPage extends StatelessWidget {
               } else if (state is MapError) {
                 return Center(
                   child: Text(
-                    state.message,  // Display error message
+                    state.message,  
                     style: const TextStyle(color: Colors.red),
                   ),
                 );
               } else {
                 return const Center(
-                  child: Text('Initializing...'),  // Default fallback
+                  child: Text('Initializing...'),  
                 );
               }
             },
           ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: (){
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const RoutesPage()),
+                );
+            },
+            child: const Icon(
+              Icons.directions,
+              )),
         ),
       ),
     );

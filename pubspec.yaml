@@ -18,6 +18,9 @@ dependencies:
   equatable: ^2.0.5
   location_repository:
     path: ./packages/location_repository
+  routes_repository:
+    path: ./packages/routes_repository
+  firebase_core: ^3.6.0
 
 dev_dependencies:
   flutter_test:
