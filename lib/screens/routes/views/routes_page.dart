@@ -1,34 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:routes_repository/routes_repository.dart'; // Adjust the import path as needed
 
 class RoutesPage extends StatelessWidget {
-  const RoutesPage({super.key});
+  final RoutesRepository routesRepository = RoutesRepository();
+
+  RoutesPage({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Routes Page'),
+        title: const Text('Routes'),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'This is the Routes Page',  
-              style: TextStyle(fontSize: 20),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                // Navigate back to the previous page
-                Navigator.pop(context);
-              },
-              child: const Text('Go Back'),
-            ),
-          ],
-        ),
+      body: FutureBuilder<List<RouteModel>>(
+        future: routesRepository.loadRoutes(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return const Center(child: Text('No routes available'));
+          } else {
+            // Extract the route name
+            final route = snapshot.data!.first;
+            return Center(
+              child: Text('Route Name: ${route.name}', style: const TextStyle(fontSize: 18)),
+            );
+          }
+        },
       ),
-      
     );
   }
 }

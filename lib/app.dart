@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:pttms/screens/map/views/map_page.dart';
-import 'package:pttms/screens/routes/views/routes_page.dart';
+import 'screens/routes/views/routes_page.dart';
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return const  MaterialApp(
-      home: MapPage(),
+    return MaterialApp(
+      title: 'Route Viewer',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+      ),
+      home: RoutesPage(),
     );
   }
 }

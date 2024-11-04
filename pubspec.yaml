@@ -21,11 +21,14 @@ dependencies:
   routes_repository:
     path: ./packages/routes_repository
   firebase_core: ^3.6.0
+  dropdown_search: ^5.0.2
+
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  mockito: ^5.0.17
 
 
 flutter:
