@@ -5,9 +5,9 @@ class RoutesInitial extends RoutesState {}
 class RoutesLoading extends RoutesState {}
 
 class RoutesLoaded extends RoutesState {
-  final String routeName;
+  final List<String> routeNames;
 
-  RoutesLoaded({required this.routeName});
+  RoutesLoaded({required this.routeNames});
 }
 
 class RoutesError extends RoutesState {

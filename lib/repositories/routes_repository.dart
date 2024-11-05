@@ -5,8 +5,8 @@ class RoutesRepository {
 
   RoutesRepository(this._dataProvider);
 
-  Future<String> fetchRouteName() async {
+  Future<List<String>> fetchRouteNames() async {
     final data = await _dataProvider.loadRoutesData();
-    return data['name'] as String;  // Assuming "name" is the route name
+    return data.map((route) => route['name'] as String).toList();
   }
 }

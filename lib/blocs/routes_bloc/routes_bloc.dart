@@ -13,10 +13,10 @@ class RoutesBloc extends Bloc<RoutesEvent, RoutesState> {
   void _onLoadRoute(LoadRouteEvent event, Emitter<RoutesState> emit) async {
     emit(RoutesLoading());
     try {
-      final routeName = await _routesRepository.fetchRouteName();
-      emit(RoutesLoaded(routeName: routeName));
+      final routeNames = await _routesRepository.fetchRouteNames();
+      emit(RoutesLoaded(routeNames: routeNames));
     } catch (e) {
-      emit(RoutesError("Failed to load route name"));
+      emit(RoutesError("Failed to load routes"));
     }
   }
 }
