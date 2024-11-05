@@ -1,34 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:routes_repository/routes_repository.dart'; // Adjust the import path as needed
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../blocs/routes_bloc/routes_bloc.dart';
+import '../../../blocs/routes_bloc/routes_event.dart';
+import '../../../blocs/routes_bloc/routes_state.dart';
+import '../../../repositories/routes_repository.dart';
+import '../../../data/data_provider.dart';
 
 class RoutesPage extends StatelessWidget {
-  final RoutesRepository routesRepository = RoutesRepository();
-
-  RoutesPage({Key? key}) : super(key: key);
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Routes'),
+        title: Text('Route Name'),
       ),
-      body: FutureBuilder<List<RouteModel>>(
-        future: routesRepository.loadRoutes(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No routes available'));
-          } else {
-            // Extract the route name
-            final route = snapshot.data!.first;
-            return Center(
-              child: Text('Route Name: ${route.name}', style: const TextStyle(fontSize: 18)),
-            );
-          }
-        },
+      body: BlocProvider(
+        create: (context) => RoutesBloc(RoutesRepository(DataProvider()))..add(LoadRouteEvent()),
+        child: BlocBuilder<RoutesBloc, RoutesState>(
+          builder: (context, state) {
+            if (state is RoutesLoading) {
+              return Center(child: CircularProgressIndicator());
+            } else if (state is RoutesLoaded) {
+              return Center(child: Text('Route Name: ${state.routeName}'));
+            } else if (state is RoutesError) {
+              return Center(child: Text('Error: ${state.message}'));
+            }
+            return Container();
+          },
+        ),
       ),
     );
   }
