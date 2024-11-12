@@ -44,14 +44,14 @@ class _RoutesPageState extends State<RoutesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Routes Selection'),
+        title: const Text('Routes Selection'),
       ),
       body: BlocProvider(
         create: (context) => RoutesBloc(RoutesRepository(DataProvider()))..add(LoadRouteEvent()),
         child: BlocBuilder<RoutesBloc, RoutesState>(
           builder: (context, state) {
             if (state is RoutesLoading) {
-              return Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator());
             } else if (state is RoutesLoaded) {
               // Populate available routes only once on successful load
               if (availableRoutes.isEmpty) {
@@ -67,16 +67,16 @@ class _RoutesPageState extends State<RoutesPage> {
                     Container(
                       width: double.infinity, // Matches card width
                       height: 60, // Slightly taller than default
-                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.grey),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: DropdownButton<String>(
-                        hint: Text('Select a route'),
+                        hint: const Text('Select a route'),
                         value: selectedRoute,
                         isExpanded: true,
-                        underline: SizedBox(), // Remove default underline
+                        underline: const SizedBox(), // Remove default underline
                         items: availableRoutes.map((route) {
                           return DropdownMenuItem<String>(
                             value: route,
@@ -96,7 +96,7 @@ class _RoutesPageState extends State<RoutesPage> {
                         },
                       ),
                     ),
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     Expanded(
                       child: ListView.builder(
                         itemCount: selectedRoutes.length,
@@ -106,7 +106,7 @@ class _RoutesPageState extends State<RoutesPage> {
                             child: ListTile(
                               title: Text(route),
                               trailing: IconButton(
-                                icon: Icon(Icons.remove_circle),
+                                icon: const Icon(Icons.remove_circle),
                                 color: Colors.red,
                                 onPressed: () {
                                   setState(() {

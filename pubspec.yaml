@@ -19,6 +19,7 @@ dependencies:
   location_repository:
     path: ./packages/location_repository
   firebase_core: ^3.6.0
+  cloud_firestore: ^5.0.0
   dropdown_search: ^5.0.2
   shared_preferences: ^2.0.9
 
