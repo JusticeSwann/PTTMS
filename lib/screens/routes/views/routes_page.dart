@@ -16,6 +16,7 @@ class _RoutesPageState extends State<RoutesPage> {
   String? selectedRoute;
   List<String> availableRoutes = [];
   List<String> selectedRoutes = [];
+  List<Map<String, dynamic>> availableRoutesData = []; // Store route data
 
   @override
   void initState() {
@@ -34,11 +35,38 @@ class _RoutesPageState extends State<RoutesPage> {
     }
   }
 
-  // Save selected routes to SharedPreferences
-  Future<void> _saveSelectedRoutes() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('selectedRoutes', selectedRoutes);
-  }
+Future<void> _saveSelectedRoutes() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+
+  // Cache selected routes
+  await prefs.setStringList('selectedRoutes', selectedRoutes);
+
+  // Cache pickup points for selected routes
+  final selectedPickupPoints = selectedRoutes.expand((routeName) {
+    final route = availableRoutesData.firstWhere(
+      (r) => r['name'] == routeName,
+      orElse: () => {},
+    );
+
+    if (route.isEmpty || route['pickup_points'] == null) {
+      return [];
+    }
+
+    return route['pickup_points'];
+  }).toList();
+
+  // Log formatted pickup points before saving
+  final pickupPointsToSave = selectedPickupPoints.map((point) => '${point[0]},${point[1]}').toList();
+  print('Formatted pickup points to save: $pickupPointsToSave');
+
+  // Save pickup points to SharedPreferences
+  await prefs.setStringList('pickupPoints', pickupPointsToSave);
+
+  // Debug: Retrieve and print after saving
+  final savedPickupPoints = prefs.getStringList('pickupPoints') ?? [];
+  print('Saved Pickup Points in SharedPreferences: $savedPickupPoints');
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -53,11 +81,12 @@ class _RoutesPageState extends State<RoutesPage> {
             if (state is RoutesLoading) {
               return const Center(child: CircularProgressIndicator());
             } else if (state is RoutesLoaded) {
-              // Populate available routes only once on successful load
               if (availableRoutes.isEmpty) {
                 availableRoutes = state.routeNames
                     .where((route) => !selectedRoutes.contains(route))
                     .toList();
+                availableRoutesData = state.routes; // Store full route data
+                print('Loaded routes with data: $availableRoutesData'); // Debug log
               }
 
               return Padding(
@@ -65,8 +94,8 @@ class _RoutesPageState extends State<RoutesPage> {
                 child: Column(
                   children: [
                     Container(
-                      width: double.infinity, // Matches card width
-                      height: 60, // Slightly taller than default
+                      width: double.infinity,
+                      height: 60,
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         border: Border.all(color: Colors.grey),
@@ -76,7 +105,7 @@ class _RoutesPageState extends State<RoutesPage> {
                         hint: const Text('Select a route'),
                         value: selectedRoute,
                         isExpanded: true,
-                        underline: const SizedBox(), // Remove default underline
+                        underline: const SizedBox(),
                         items: availableRoutes.map((route) {
                           return DropdownMenuItem<String>(
                             value: route,

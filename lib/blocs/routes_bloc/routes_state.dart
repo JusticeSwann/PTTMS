@@ -5,9 +5,12 @@ class RoutesInitial extends RoutesState {}
 class RoutesLoading extends RoutesState {}
 
 class RoutesLoaded extends RoutesState {
-  final List<String> routeNames;
+  final List<Map<String, dynamic>> routes; // Full route data
+  final List<String> routeNames; // Extracted route names
 
-  RoutesLoaded({required this.routeNames});
+  // Constructor takes full route data and extracts route names
+  RoutesLoaded({required this.routes})
+      : routeNames = routes.map((route) => route['name'] as String).toList();
 }
 
 class RoutesError extends RoutesState {
