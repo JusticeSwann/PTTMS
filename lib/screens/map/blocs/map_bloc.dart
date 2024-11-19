@@ -7,11 +7,18 @@ import 'map_event.dart';
 import 'map_state.dart';
 import 'package:location_repository/location_repository.dart';
 import 'dart:math';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class MapBloc extends Bloc<MapEvent, MapState> {
   final LocationRepository locationRepository;
   Timer? _timer;
   String? _deviceId;
+  DateTime? _nearPickupStartTime;
+  LatLng? _lastPosition;
+  DateTime? _lastTimestamp;
+  String _status = 'waiting'; // waiting or moving
+  int _statusTime = 0; // Time in seconds
+  String _routeName = 'Default Route'; // Placeholder for route name
 
   MapBloc({required this.locationRepository}) : super(MapInitial()) {
     _initialize();
@@ -69,7 +76,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           return;
         }
 
-        print('Checking proximity to pickup points...');
+        // Check proximity to pickup points
         final isNearby = pickupPoints.any((point) {
           final distance = _calculateDistance(
             position.latitude,
@@ -77,45 +84,118 @@ class MapBloc extends Bloc<MapEvent, MapState> {
             point[0],
             point[1],
           );
-          print('Distance to pickup point (${point[0]}, ${point[1]}): $distance meters');
           return distance <= 30;
         });
 
-        if (!isNearby) {
-          print('User is not near any pickup point. Current location: (${position.latitude}, ${position.longitude}).');
+        if (isNearby) {
+          _handleNearPickupPoint(position);
+        } else {
+          _nearPickupStartTime = null; // Reset timer if no longer near a pickup point
+          _status = 'moving';
+        }
+
+        // Calculate speed
+        double speed = 0;
+        if (_lastPosition != null && _lastTimestamp != null) {
+          final timeDiff = DateTime.now().difference(_lastTimestamp!).inSeconds;
+          final distance = _calculateDistance(
+            _lastPosition!.latitude,
+            _lastPosition!.longitude,
+            position.latitude,
+            position.longitude,
+          );
+          speed = distance / timeDiff; // Speed in m/s (~3.6 for km/h)
+
+          if (speed > 4.2) {
+            print('User moving at speed ${speed * 3.6} km/h. Continuing tracking.');
+            _status = 'moving';
+          } else {
+            print('User moving below 15 km/h. Checking distance from route...');
+            _status = 'waiting';
+          }
+        }
+
+        // Calculate distance from route
+        final isOnRoute = _isOnRoute(position, pickupPoints);
+        final distanceFromRoute = isOnRoute
+            ? 0
+            : _calculateNearestDistance(position, pickupPoints);
+
+        if (!isOnRoute) {
+          print('User moved more than 30m away from the route. Stopping tracking.');
+          _timer?.cancel();
           return;
         }
 
+        // Save location to Firestore
         await FirebaseFirestore.instance.collection('locations').add({
           'latitude': position.latitude,
           'longitude': position.longitude,
           'timestamp': FieldValue.serverTimestamp(),
           'device_id': _deviceId,
+          'route_name': _routeName,
+          'status': _status,
+          'status_time': _statusTime,
+          'distance_from_route': distanceFromRoute,
         });
-        print('Location saved: (${position.latitude}, ${position.longitude})');
+        print(
+            'Location saved: (${position.latitude}, ${position.longitude}), Status: $_status, Distance from Route: $distanceFromRoute');
+
+        // Update last position, timestamp, and status time
+        _lastPosition = position;
+        _lastTimestamp = DateTime.now();
+        _statusTime += 10; // Increment status time every 10 seconds
       } catch (e) {
         print('Error saving location to Firestore: $e');
       }
     });
   }
 
-Future<List<List<double>>> _getCachedPickupPoints() async {
-  SharedPreferences prefs = await SharedPreferences.getInstance();
+  void _handleNearPickupPoint(LatLng position) {
+    if (_nearPickupStartTime == null) {
+      _nearPickupStartTime = DateTime.now();
+      print('User near pickup point. Timer started.');
+    } else {
+      final duration = DateTime.now().difference(_nearPickupStartTime!);
+      print('User near pickup point for ${duration.inSeconds} seconds.');
+      _statusTime = duration.inSeconds;
+    }
+  }
 
-  // Retrieve raw pickup points
-  final rawPickupPoints = prefs.getStringList('pickupPoints') ?? [];
-  print('Raw pickup points from SharedPreferences: $rawPickupPoints');
+  bool _isOnRoute(LatLng position, List<List<double>> routePolyline) {
+    return routePolyline.any((point) {
+      final distance = _calculateDistance(
+        position.latitude,
+        position.longitude,
+        point[0],
+        point[1],
+      );
+      return distance <= 30;
+    });
+  }
 
-  // Parse and return pickup points
-  return rawPickupPoints.map((point) {
-    final coords = point.split(',');
-    return [double.parse(coords[0]), double.parse(coords[1])];
-  }).toList();
-}
+  double _calculateNearestDistance(LatLng position, List<List<double>> routePolyline) {
+    return routePolyline
+        .map((point) => _calculateDistance(
+              position.latitude,
+              position.longitude,
+              point[0],
+              point[1],
+            ))
+        .reduce(min);
+  }
 
+  Future<List<List<double>>> _getCachedPickupPoints() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final rawPickupPoints = prefs.getStringList('pickupPoints') ?? [];
+    return rawPickupPoints.map((point) {
+      final coords = point.split(',');
+      return [double.parse(coords[0]), double.parse(coords[1])];
+    }).toList();
+  }
 
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const earthRadius = 6371000; // Earth's radius in meters
+    const earthRadius = 6371000;
     final dLat = _degreesToRadians(lat2 - lat1);
     final dLon = _degreesToRadians(lon2 - lon1);
     final a = sin(dLat / 2) * sin(dLat / 2) +
