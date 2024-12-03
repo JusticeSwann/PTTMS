@@ -8,6 +8,8 @@ import '../../../repositories/routes_repository.dart';
 import '../../../data/data_provider.dart';
 
 class RoutesPage extends StatefulWidget {
+  const RoutesPage({super.key});
+
   @override
   _RoutesPageState createState() => _RoutesPageState();
 }
@@ -35,38 +37,54 @@ class _RoutesPageState extends State<RoutesPage> {
     }
   }
 
-Future<void> _saveSelectedRoutes() async {
-  SharedPreferences prefs = await SharedPreferences.getInstance();
+  Future<void> _saveSelectedRoutes() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
 
-  // Cache selected routes
-  await prefs.setStringList('selectedRoutes', selectedRoutes);
+    // Cache selected routes
+    await prefs.setStringList('selectedRoutes', selectedRoutes);
 
-  // Cache pickup points for selected routes
-  final selectedPickupPoints = selectedRoutes.expand((routeName) {
-    final route = availableRoutesData.firstWhere(
-      (r) => r['name'] == routeName,
-      orElse: () => {},
-    );
+    // Cache pickup points for selected routes
+    final selectedPickupPoints = selectedRoutes.expand((routeName) {
+      final route = availableRoutesData.firstWhere(
+        (r) => r['name'] == routeName,
+        orElse: () => {},
+      );
 
-    if (route.isEmpty || route['pickup_points'] == null) {
-      return [];
-    }
+      if (route.isEmpty || route['pickup_points'] == null) {
+        return [];
+      }
 
-    return route['pickup_points'];
-  }).toList();
+      return route['pickup_points'];
+    }).toList();
 
-  // Log formatted pickup points before saving
-  final pickupPointsToSave = selectedPickupPoints.map((point) => '${point[0]},${point[1]}').toList();
-  print('Formatted pickup points to save: $pickupPointsToSave');
+    // Save pickup points to SharedPreferences
+    final pickupPointsToSave = selectedPickupPoints.map((point) => '${point[0]},${point[1]}').toList();
+    await prefs.setStringList('pickupPoints', pickupPointsToSave);
 
-  // Save pickup points to SharedPreferences
-  await prefs.setStringList('pickupPoints', pickupPointsToSave);
+    // Cache stops for selected routes
+    final selectedStops = selectedRoutes.expand((routeName) {
+      final route = availableRoutesData.firstWhere(
+        (r) => r['name'] == routeName,
+        orElse: () => {},
+      );
 
-  // Debug: Retrieve and print after saving
-  final savedPickupPoints = prefs.getStringList('pickupPoints') ?? [];
-  print('Saved Pickup Points in SharedPreferences: $savedPickupPoints');
-}
+      if (route.isEmpty || route['stops'] == null) {
+        return [];
+      }
 
+      return route['stops'];
+    }).toList();
+
+    // Save stops to SharedPreferences
+    final stopsToSave = selectedStops.map((stop) => '${stop[0]},${stop[1]}').toList();
+    await prefs.setStringList('routeStops', stopsToSave);
+
+    // Debug: Retrieve and print cached data
+    final savedPickupPoints = prefs.getStringList('pickupPoints') ?? [];
+    final savedStops = prefs.getStringList('routeStops') ?? [];
+    print('Saved Pickup Points in SharedPreferences: $savedPickupPoints');
+    print('Saved Route Stops in SharedPreferences: $savedStops');
+  }
 
   @override
   Widget build(BuildContext context) {

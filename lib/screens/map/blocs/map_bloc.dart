@@ -16,9 +16,10 @@ class MapBloc extends Bloc<MapEvent, MapState> {
   DateTime? _nearPickupStartTime;
   LatLng? _lastPosition;
   DateTime? _lastTimestamp;
-  String _status = 'waiting'; // waiting or moving
+  String _status = 'passive'; // passive, waiting, or active
   int _statusTime = 0; // Time in seconds
-  String _routeName = 'Default Route'; // Placeholder for route name
+  final String _routeName = 'Default Route'; // Placeholder for route name
+  final List<LatLng> _stops = []; // List of recorded stops
 
   MapBloc({required this.locationRepository}) : super(MapInitial()) {
     _initialize();
@@ -62,7 +63,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
   }
 
   void _startLocationSaving() {
-    _timer = Timer.periodic(Duration(seconds: 10), (timer) async {
+    _timer = Timer.periodic(const Duration(seconds: 10), (timer) async {
       try {
         final position = await locationRepository.getCurrentLocation();
         if (position == null || _deviceId == null) {
@@ -71,13 +72,15 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         }
 
         final pickupPoints = await _getCachedPickupPoints();
+        final routePolyline = await _getCachedRoutePolyline();
+
         if (pickupPoints.isEmpty) {
           print('No pickup points found. Ensure they are cached correctly.');
           return;
         }
 
         // Check proximity to pickup points
-        final isNearby = pickupPoints.any((point) {
+        final isAtPickupPoint = pickupPoints.any((point) {
           final distance = _calculateDistance(
             position.latitude,
             position.longitude,
@@ -87,43 +90,29 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           return distance <= 30;
         });
 
-        if (isNearby) {
+        // Determine status
+        if (isAtPickupPoint) {
+          _status = 'waiting';
           _handleNearPickupPoint(position);
-        } else {
-          _nearPickupStartTime = null; // Reset timer if no longer near a pickup point
-          _status = 'moving';
-        }
-
-        // Calculate speed
-        double speed = 0;
-        if (_lastPosition != null && _lastTimestamp != null) {
-          final timeDiff = DateTime.now().difference(_lastTimestamp!).inSeconds;
-          final distance = _calculateDistance(
-            _lastPosition!.latitude,
-            _lastPosition!.longitude,
-            position.latitude,
-            position.longitude,
-          );
-          speed = distance / timeDiff; // Speed in m/s (~3.6 for km/h)
-
-          if (speed > 4.2) {
-            print('User moving at speed ${speed * 3.6} km/h. Continuing tracking.');
-            _status = 'moving';
-          } else {
-            print('User moving below 15 km/h. Checking distance from route...');
-            _status = 'waiting';
+        } else if (_isOnRoute(position, routePolyline)) {
+          if (_lastPosition != null) {
+            final distanceFromLastPosition = _calculateDistance(
+              _lastPosition!.latitude,
+              _lastPosition!.longitude,
+              position.latitude,
+              position.longitude,
+            );
+            if (distanceFromLastPosition >= 30) {
+              _status = 'active';
+            }
           }
+        } else {
+          _status = 'passive';
         }
 
-        // Calculate distance from route
-        final isOnRoute = _isOnRoute(position, pickupPoints);
-        final distanceFromRoute = isOnRoute
-            ? 0
-            : _calculateNearestDistance(position, pickupPoints);
-
-        if (!isOnRoute) {
-          print('User moved more than 30m away from the route. Stopping tracking.');
-          _timer?.cancel();
+        // If the status is passive, do not upload data
+        if (_status == 'passive') {
+          print('User is passive. No data will be uploaded.');
           return;
         }
 
@@ -136,10 +125,8 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           'route_name': _routeName,
           'status': _status,
           'status_time': _statusTime,
-          'distance_from_route': distanceFromRoute,
         });
-        print(
-            'Location saved: (${position.latitude}, ${position.longitude}), Status: $_status, Distance from Route: $distanceFromRoute');
+        print('Location saved: (${position.latitude}, ${position.longitude}), Status: $_status');
 
         // Update last position, timestamp, and status time
         _lastPosition = position;
@@ -158,7 +145,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     } else {
       final duration = DateTime.now().difference(_nearPickupStartTime!);
       print('User near pickup point for ${duration.inSeconds} seconds.');
-      _statusTime = duration.inSeconds;
+      _statusTime = duration.inSeconds; // Update status time
     }
   }
 
@@ -174,21 +161,19 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     });
   }
 
-  double _calculateNearestDistance(LatLng position, List<List<double>> routePolyline) {
-    return routePolyline
-        .map((point) => _calculateDistance(
-              position.latitude,
-              position.longitude,
-              point[0],
-              point[1],
-            ))
-        .reduce(min);
-  }
-
   Future<List<List<double>>> _getCachedPickupPoints() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final rawPickupPoints = prefs.getStringList('pickupPoints') ?? [];
     return rawPickupPoints.map((point) {
+      final coords = point.split(',');
+      return [double.parse(coords[0]), double.parse(coords[1])];
+    }).toList();
+  }
+
+  Future<List<List<double>>> _getCachedRoutePolyline() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final rawPolyline = prefs.getStringList('routePolyline') ?? [];
+    return rawPolyline.map((point) {
       final coords = point.split(',');
       return [double.parse(coords[0]), double.parse(coords[1])];
     }).toList();

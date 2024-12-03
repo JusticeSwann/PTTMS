@@ -1,0 +1,14 @@
+[33mbb3a289[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m added more data to firebase upload
+[33md4d27db[m application dectects if user is in pickup zone
+[33m6948902[m added new routes
+[33mc8bc47f[m connected pttms to firebase
+[33m2cd76ff[m users can save route selection
+[33m75a9f4a[m route.json file is being read
+[33m53200b9[m basic unit test for routes
+[33mfd75f14[m building reoutes page
+[33mf8a8d27[m location tracking reenabled with bloc
+[33m19f7279[m added blocs for map_page
+[33m8a71a36[m created add routes screen
+[33m388ec11[m Map load and markers added(test)
+[33m1a61c93[m Map load working
+[33m2e9948c[m first commit
