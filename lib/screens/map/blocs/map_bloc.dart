@@ -1,8 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:device_info_plus/device_info_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'map_event.dart';
 import 'map_state.dart';
 import 'package:location_repository/location_repository.dart';
@@ -18,8 +19,8 @@ class MapBloc extends Bloc<MapEvent, MapState> {
   DateTime? _lastTimestamp;
   String _status = 'passive'; // passive, waiting, or active
   int _statusTime = 0; // Time in seconds
-  final String _routeName = 'Default Route'; // Placeholder for route name
-  final List<LatLng> _stops = []; // List of recorded stops
+  String? _currentRouteName; // Tracks the closest route name
+  List<Map<String, dynamic>> _nearbyRoutes = []; // Routes within 300m
 
   MapBloc({required this.locationRepository}) : super(MapInitial()) {
     _initialize();
@@ -71,30 +72,54 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           return;
         }
 
-        final pickupPoints = await _getCachedPickupPoints();
-        final routePolyline = await _getCachedRoutePolyline();
+        final routes = await _loadRoutesFromJson();
 
-        if (pickupPoints.isEmpty) {
-          print('No pickup points found. Ensure they are cached correctly.');
-          return;
+        // Reset nearby routes list and track the closest route
+        _nearbyRoutes = [];
+        String? closestRouteName;
+        double minDistance = double.infinity;
+
+        for (var route in routes) {
+          final polyline = route['polyline'] as List;
+          final parsedPolyline = polyline.map<List<double>>((point) {
+            return List<double>.from(point);
+          }).toList();
+
+          final distance = _calculateMinDistanceToRoute(position, parsedPolyline);
+
+          if (distance <= 300) {
+            _nearbyRoutes.add({
+              ...route,
+              'polyline': parsedPolyline,
+            });
+            if (distance < minDistance) {
+              minDistance = distance;
+              closestRouteName = route['name'];
+            }
+          }
         }
 
-        // Check proximity to pickup points
-        final isAtPickupPoint = pickupPoints.any((point) {
-          final distance = _calculateDistance(
-            position.latitude,
-            position.longitude,
-            point[0],
-            point[1],
-          );
-          return distance <= 30;
+        _currentRouteName = closestRouteName; // Set the closest route name
+
+        print('Nearby Routes: ${_nearbyRoutes.map((route) => route['name']).toList()}');
+        print('Closest Route: $_currentRouteName');
+
+        // Update status based on proximity
+        if (_nearbyRoutes.isEmpty) {
+          _status = 'passive';
+          print('No nearby routes. User status: $_status');
+          return; // Do not upload data
+        }
+
+        final isNearPolyline = _nearbyRoutes.any((route) {
+          final polyline = route['polyline'] as List<List<double>>;
+          return _isNearRoute(position, polyline, distanceThreshold: 30);
         });
 
-        // Determine status
-        if (isAtPickupPoint) {
+        if (isNearPolyline) {
           _status = 'waiting';
           _handleNearPickupPoint(position);
-        } else if (_isOnRoute(position, routePolyline)) {
+        } else {
           if (_lastPosition != null) {
             final distanceFromLastPosition = _calculateDistance(
               _lastPosition!.latitude,
@@ -106,36 +131,99 @@ class MapBloc extends Bloc<MapEvent, MapState> {
               _status = 'active';
             }
           }
-        } else {
-          _status = 'passive';
         }
 
-        // If the status is passive, do not upload data
-        if (_status == 'passive') {
-          print('User is passive. No data will be uploaded.');
-          return;
+        if (_status != 'passive') {
+          await FirebaseFirestore.instance.collection('locations').add({
+            'latitude': position.latitude,
+            'longitude': position.longitude,
+            'timestamp': FieldValue.serverTimestamp(),
+            'device_id': _deviceId,
+            'status': _status,
+            'status_time': _statusTime,
+            'route_name': _currentRouteName,
+          });
+          print('Location saved: (${position.latitude}, ${position.longitude}), Status: $_status, Route: $_currentRouteName');
         }
 
-        // Save location to Firestore
-        await FirebaseFirestore.instance.collection('locations').add({
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-          'timestamp': FieldValue.serverTimestamp(),
-          'device_id': _deviceId,
-          'route_name': _routeName,
-          'status': _status,
-          'status_time': _statusTime,
-        });
-        print('Location saved: (${position.latitude}, ${position.longitude}), Status: $_status');
-
-        // Update last position, timestamp, and status time
         _lastPosition = position;
         _lastTimestamp = DateTime.now();
-        _statusTime += 10; // Increment status time every 10 seconds
+        _statusTime += 10;
       } catch (e) {
         print('Error saving location to Firestore: $e');
       }
     });
+  }
+
+  bool _isNearRoute(LatLng position, List<List<double>> polyline, {int distanceThreshold = 300}) {
+    for (int i = 0; i < polyline.length - 1; i++) {
+      final segmentStart = polyline[i];
+      final segmentEnd = polyline[i + 1];
+      final distance = _distanceToSegment(
+        position.latitude,
+        position.longitude,
+        segmentStart[0],
+        segmentStart[1],
+        segmentEnd[0],
+        segmentEnd[1],
+      );
+      if (distance <= distanceThreshold) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  double _calculateMinDistanceToRoute(LatLng position, List<List<double>> polyline) {
+    double minDistance = double.infinity;
+    for (int i = 0; i < polyline.length - 1; i++) {
+      final segmentStart = polyline[i];
+      final segmentEnd = polyline[i + 1];
+      final distance = _distanceToSegment(
+        position.latitude,
+        position.longitude,
+        segmentStart[0],
+        segmentStart[1],
+        segmentEnd[0],
+        segmentEnd[1],
+      );
+      minDistance = min(minDistance, distance);
+    }
+    return minDistance;
+  }
+
+  double _distanceToSegment(
+      double lat, double lon, double lat1, double lon1, double lat2, double lon2) {
+    final p = [lat, lon];
+    final v = [lat1, lon1];
+    final w = [lat2, lon2];
+
+    final l2 = pow(lat2 - lat1, 2) + pow(lon2 - lon1, 2);
+    if (l2 == 0.0) return _calculateDistance(lat, lon, lat1, lon1);
+
+    var t = ((p[0] - v[0]) * (w[0] - v[0]) + (p[1] - v[1]) * (w[1] - v[1])) / l2;
+    t = max(0, min(1, t));
+
+    final projection = [
+      v[0] + t * (w[0] - v[0]),
+      v[1] + t * (w[1] - v[1]),
+    ];
+
+    return _calculateDistance(lat, lon, projection[0], projection[1]);
+  }
+
+  Future<List<Map<String, dynamic>>> _loadRoutesFromJson() async {
+    try {
+      final String response = await rootBundle.loadString('assets/routes.json');
+      final data = json.decode(response) as Map<String, dynamic>;
+      final routes = (data['routes'] as List)
+          .map((route) => route as Map<String, dynamic>)
+          .toList();
+      return routes;
+    } catch (e) {
+      print('Error loading routes.json: $e');
+      return [];
+    }
   }
 
   void _handleNearPickupPoint(LatLng position) {
@@ -145,38 +233,8 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     } else {
       final duration = DateTime.now().difference(_nearPickupStartTime!);
       print('User near pickup point for ${duration.inSeconds} seconds.');
-      _statusTime = duration.inSeconds; // Update status time
+      _statusTime = duration.inSeconds;
     }
-  }
-
-  bool _isOnRoute(LatLng position, List<List<double>> routePolyline) {
-    return routePolyline.any((point) {
-      final distance = _calculateDistance(
-        position.latitude,
-        position.longitude,
-        point[0],
-        point[1],
-      );
-      return distance <= 30;
-    });
-  }
-
-  Future<List<List<double>>> _getCachedPickupPoints() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final rawPickupPoints = prefs.getStringList('pickupPoints') ?? [];
-    return rawPickupPoints.map((point) {
-      final coords = point.split(',');
-      return [double.parse(coords[0]), double.parse(coords[1])];
-    }).toList();
-  }
-
-  Future<List<List<double>>> _getCachedRoutePolyline() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    final rawPolyline = prefs.getStringList('routePolyline') ?? [];
-    return rawPolyline.map((point) {
-      final coords = point.split(',');
-      return [double.parse(coords[0]), double.parse(coords[1])];
-    }).toList();
   }
 
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
