@@ -17,8 +17,17 @@ class MapBloc extends Bloc<MapEvent, MapState> {
   LatLng? _lastPosition;
   DateTime? _lastTimestamp;
   String _status = 'passive'; // passive or active
-  String? _currentRouteName; // Tracks the closest route name
-  List<Map<String, dynamic>> _nearbyRoutes = []; // Routes within 300m
+  String? _currentRouteName;
+  List<Map<String, dynamic>> _nearbyRoutes = [];
+
+  // Report data
+  String? _reportId;
+  LatLng? _startLocation;
+  int _waitingTime = 0;
+  int _activeTime = 0;
+  double _totalDistance = 0;
+  double _totalSpeed = 0;
+  int _speedCount = 0;
 
   MapBloc({required this.locationRepository}) : super(MapInitial()) {
     _initialize();
@@ -62,7 +71,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
   }
 
   void _startLocationSaving() {
-    _timer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+    _timer = Timer.periodic(const Duration(seconds: 5), (timer) async {
       try {
         final position = await locationRepository.getCurrentLocation();
         if (position == null || _deviceId == null) {
@@ -71,8 +80,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         }
 
         final routes = await _loadRoutesFromJson();
-
-        // Reset nearby routes list and track the closest route
         _nearbyRoutes = [];
         String? closestRouteName;
         double minDistance = double.infinity;
@@ -97,18 +104,10 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           }
         }
 
-        _currentRouteName = closestRouteName; // Set the closest route name
-
-        print('Nearby Routes: ${_nearbyRoutes.map((route) => route['name']).toList()}');
+        _currentRouteName = closestRouteName;
         print('Closest Route: $_currentRouteName');
 
-        if (_nearbyRoutes.isEmpty) {
-          _status = 'passive';
-          print('No nearby routes. User status: $_status');
-          return; // Do not upload data
-        }
-
-        // Calculate speed and proximity to route
+        // Calculate speed
         double speed = 0;
         if (_lastPosition != null && _lastTimestamp != null) {
           final timeDiff = DateTime.now().difference(_lastTimestamp!).inSeconds;
@@ -118,7 +117,10 @@ class MapBloc extends Bloc<MapEvent, MapState> {
             position.latitude,
             position.longitude,
           );
-          speed = distance / timeDiff; // Speed in m/s
+          speed = distance / timeDiff;
+          _totalDistance += distance;
+          _totalSpeed += speed;
+          _speedCount++;
         }
 
         final isOnRoute = _nearbyRoutes.any((route) {
@@ -126,30 +128,63 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           return _isNearRoute(position, polyline, distanceThreshold: 50);
         });
 
-        if (speed > 5 && isOnRoute) {
+        if (_status == 'passive' && speed > 5 && isOnRoute) {
           _status = 'active';
-        } else if (!isOnRoute) {
-          _status = 'passive';
+          _initializeReport(position);
         }
 
         if (_status == 'active') {
-          await FirebaseFirestore.instance.collection('locations').add({
-            'latitude': position.latitude,
-            'longitude': position.longitude,
-            'timestamp': FieldValue.serverTimestamp(),
-            'device_id': _deviceId,
-            'status': _status,
-            'route_name': _currentRouteName,
-          });
-          print('Location saved: (${position.latitude}, ${position.longitude}), Status: $_status, Route: $_currentRouteName');
+          if (isOnRoute) {
+            _activeTime += 5;
+          } else {
+            _status = 'passive';
+          }
+        }
+
+        if (_reportId != null) {
+          await _updateReport(position, speed);
         }
 
         _lastPosition = position;
         _lastTimestamp = DateTime.now();
       } catch (e) {
-        print('Error saving location to Firestore: $e');
+        print('Error updating report: $e');
       }
     });
+  }
+
+  void _initializeReport(LatLng position) {
+    _reportId = '$_deviceId-${DateTime.now().millisecondsSinceEpoch}';
+    _startLocation = position;
+    _waitingTime = 0;
+    _activeTime = 0;
+    _totalDistance = 0;
+    _totalSpeed = 0;
+    _speedCount = 0;
+
+    FirebaseFirestore.instance.collection('actor_report').doc(_reportId).set({
+      'report_id': _reportId,
+      'device_id': _deviceId,
+      'route_name': _currentRouteName,
+      'waiting_time': _waitingTime,
+      'active_time': _activeTime,
+      'start_location': {'lat': position.latitude, 'lng': position.longitude},
+      'last_location': {'lat': position.latitude, 'lng': position.longitude},
+      'avg_speed': null,
+    });
+  }
+
+  Future<void> _updateReport(LatLng position, double speed) async {
+    final avgSpeed = _speedCount > 0 ? _totalSpeed / _speedCount : 0;
+
+    await FirebaseFirestore.instance.collection('actor_report').doc(_reportId).update({
+      'waiting_time': _waitingTime,
+      'active_time': _activeTime,
+      'last_location': {'lat': position.latitude, 'lng': position.longitude},
+      'avg_speed': avgSpeed,
+    });
+
+    print('Report Updated: Active Time: $_activeTime, Avg Speed: $avgSpeed');
   }
 
   bool _isNearRoute(LatLng position, List<List<double>> polyline, {int distanceThreshold = 50}) {
@@ -164,9 +199,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         segmentEnd[0],
         segmentEnd[1],
       );
-      if (distance <= distanceThreshold) {
-        return true;
-      }
+      if (distance <= distanceThreshold) return true;
     }
     return false;
   }
@@ -189,38 +222,23 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     return minDistance;
   }
 
-  double _distanceToSegment(
-      double lat, double lon, double lat1, double lon1, double lat2, double lon2) {
+  double _distanceToSegment(double lat, double lon, double lat1, double lon1, double lat2, double lon2) {
     final p = [lat, lon];
     final v = [lat1, lon1];
     final w = [lat2, lon2];
-
     final l2 = pow(lat2 - lat1, 2) + pow(lon2 - lon1, 2);
     if (l2 == 0.0) return _calculateDistance(lat, lon, lat1, lon1);
 
     var t = ((p[0] - v[0]) * (w[0] - v[0]) + (p[1] - v[1]) * (w[1] - v[1])) / l2;
     t = max(0, min(1, t));
-
-    final projection = [
-      v[0] + t * (w[0] - v[0]),
-      v[1] + t * (w[1] - v[1]),
-    ];
-
+    final projection = [v[0] + t * (w[0] - v[0]), v[1] + t * (w[1] - v[1])];
     return _calculateDistance(lat, lon, projection[0], projection[1]);
   }
 
   Future<List<Map<String, dynamic>>> _loadRoutesFromJson() async {
-    try {
-      final String response = await rootBundle.loadString('assets/routes.json');
-      final data = json.decode(response) as Map<String, dynamic>;
-      final routes = (data['routes'] as List)
-          .map((route) => route as Map<String, dynamic>)
-          .toList();
-      return routes;
-    } catch (e) {
-      print('Error loading routes.json: $e');
-      return [];
-    }
+    final String response = await rootBundle.loadString('assets/routes.json');
+    final data = json.decode(response) as Map<String, dynamic>;
+    return (data['routes'] as List).map((e) => e as Map<String, dynamic>).toList();
   }
 
   double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
@@ -228,17 +246,12 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     final dLat = _degreesToRadians(lat2 - lat1);
     final dLon = _degreesToRadians(lon2 - lon1);
     final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_degreesToRadians(lat1)) *
-            cos(_degreesToRadians(lat2)) *
-            sin(dLon / 2) *
-            sin(dLon / 2);
-    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return earthRadius * c;
+        cos(_degreesToRadians(lat1)) * cos(_degreesToRadians(lat2)) *
+            sin(dLon / 2) * sin(dLon / 2);
+    return earthRadius * 2 * atan2(sqrt(a), sqrt(1 - a));
   }
 
-  double _degreesToRadians(double degrees) {
-    return degrees * pi / 180;
-  }
+  double _degreesToRadians(double degrees) => degrees * pi / 180;
 
   @override
   Future<void> close() {
