@@ -14,11 +14,9 @@ class MapBloc extends Bloc<MapEvent, MapState> {
   final LocationRepository locationRepository;
   Timer? _timer;
   String? _deviceId;
-  DateTime? _nearPickupStartTime;
   LatLng? _lastPosition;
   DateTime? _lastTimestamp;
-  String _status = 'passive'; // passive, waiting, or active
-  int _statusTime = 0; // Time in seconds
+  String _status = 'passive'; // passive or active
   String? _currentRouteName; // Tracks the closest route name
   List<Map<String, dynamic>> _nearbyRoutes = []; // Routes within 300m
 
@@ -104,43 +102,43 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         print('Nearby Routes: ${_nearbyRoutes.map((route) => route['name']).toList()}');
         print('Closest Route: $_currentRouteName');
 
-        // Update status based on proximity
         if (_nearbyRoutes.isEmpty) {
           _status = 'passive';
           print('No nearby routes. User status: $_status');
           return; // Do not upload data
         }
 
-        final isNearPolyline = _nearbyRoutes.any((route) {
-          final polyline = route['polyline'] as List<List<double>>;
-          return _isNearRoute(position, polyline, distanceThreshold: 30);
-        });
-
-        if (isNearPolyline) {
-          _status = 'waiting';
-          _handleNearPickupPoint(position);
-        } else {
-          if (_lastPosition != null) {
-            final distanceFromLastPosition = _calculateDistance(
-              _lastPosition!.latitude,
-              _lastPosition!.longitude,
-              position.latitude,
-              position.longitude,
-            );
-            if (distanceFromLastPosition >= 30) {
-              _status = 'active';
-            }
-          }
+        // Calculate speed and proximity to route
+        double speed = 0;
+        if (_lastPosition != null && _lastTimestamp != null) {
+          final timeDiff = DateTime.now().difference(_lastTimestamp!).inSeconds;
+          final distance = _calculateDistance(
+            _lastPosition!.latitude,
+            _lastPosition!.longitude,
+            position.latitude,
+            position.longitude,
+          );
+          speed = distance / timeDiff; // Speed in m/s
         }
 
-        if (_status != 'passive') {
+        final isOnRoute = _nearbyRoutes.any((route) {
+          final polyline = route['polyline'] as List<List<double>>;
+          return _isNearRoute(position, polyline, distanceThreshold: 50);
+        });
+
+        if (speed > 5 && isOnRoute) {
+          _status = 'active';
+        } else if (!isOnRoute) {
+          _status = 'passive';
+        }
+
+        if (_status == 'active') {
           await FirebaseFirestore.instance.collection('locations').add({
             'latitude': position.latitude,
             'longitude': position.longitude,
             'timestamp': FieldValue.serverTimestamp(),
             'device_id': _deviceId,
             'status': _status,
-            'status_time': _statusTime,
             'route_name': _currentRouteName,
           });
           print('Location saved: (${position.latitude}, ${position.longitude}), Status: $_status, Route: $_currentRouteName');
@@ -148,14 +146,13 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
         _lastPosition = position;
         _lastTimestamp = DateTime.now();
-        _statusTime += 10;
       } catch (e) {
         print('Error saving location to Firestore: $e');
       }
     });
   }
 
-  bool _isNearRoute(LatLng position, List<List<double>> polyline, {int distanceThreshold = 300}) {
+  bool _isNearRoute(LatLng position, List<List<double>> polyline, {int distanceThreshold = 50}) {
     for (int i = 0; i < polyline.length - 1; i++) {
       final segmentStart = polyline[i];
       final segmentEnd = polyline[i + 1];
@@ -223,17 +220,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     } catch (e) {
       print('Error loading routes.json: $e');
       return [];
-    }
-  }
-
-  void _handleNearPickupPoint(LatLng position) {
-    if (_nearPickupStartTime == null) {
-      _nearPickupStartTime = DateTime.now();
-      print('User near pickup point. Timer started.');
-    } else {
-      final duration = DateTime.now().difference(_nearPickupStartTime!);
-      print('User near pickup point for ${duration.inSeconds} seconds.');
-      _statusTime = duration.inSeconds;
     }
   }
 
