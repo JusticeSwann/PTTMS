@@ -11,23 +11,25 @@ class BottomNavBarWidget extends StatelessWidget {
     return BlocProvider(create: (context) => MenuBloc(),
       child: BlocBuilder<MenuBloc,MenuBlocState>(
         builder: (context, state) {
+          int selectedIndex = 0;
           if (state is SelectedIndexState){
-            print('${state.selectedIndex}');
+           selectedIndex = state.selectedIndex;
           }
-          return BottomNavigationBar(
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home),
+          return NavigationBar(
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home), 
                 label: 'Home'
               ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.directions),
+              NavigationDestination(
+                icon: Icon(Icons.directions), 
                 label: 'Routes'
               ),
             ],
-            onTap: (value) {
+            onDestinationSelected : (int value) {
               context.read<MenuBloc>().add(MenuItemSelected(selectedIndex: value));
             },
+            selectedIndex: selectedIndex,
           );
         },
       )
