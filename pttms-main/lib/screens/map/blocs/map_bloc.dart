@@ -79,121 +79,123 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     emit(MapLoaded(event.position));
   }
 
-  void _startLocationSaving() {
-    _uploadTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
-      try {
-        final position = await locationRepository.getCurrentLocation();
-        if (position == null || _deviceId == null) {
-          print('Location or device ID unavailable. Skipping upload.');
-          return;
-        }
-
-        final routes = await _loadRoutesFromJson();
-        _nearbyRoutes = [];
-        String? closestRouteName;
-        double minDistance = double.infinity;
-
-        for (var route in routes) {
-          try {
-            final polyline = (route['polyline'] as List)
-                .map((point) => (point as List).map((e) => e as double).toList())
-                .toList();
-
-            final distance = _calculateMinDistanceToRoute(position, polyline);
-
-            if (distance <= 300) {
-              _nearbyRoutes.add({
-                ...route,
-                'polyline': polyline,
-              });
-              if (distance < minDistance) {
-                minDistance = distance;
-                closestRouteName = route['name'];
-              }
-            }
-          } catch (e) {
-            print('Error parsing route polyline: $e');
-          }
-        }
-
-        _currentRouteName = closestRouteName;
-        print('Closest Route: $_currentRouteName');
-
-        // Calculate speed
-        double speed = 0;
-        if (_lastPosition != null && _lastTimestamp != null) {
-          final timeDiff = DateTime.now().difference(_lastTimestamp!).inSeconds;
-          final distance = _calculateDistance(
-            _lastPosition!.latitude,
-            _lastPosition!.longitude,
-            position.latitude,
-            position.longitude,
-          );
-          speed = distance / timeDiff;
-          _totalDistance += distance;
-          _totalSpeed += speed;
-          _speedCount++;
-        }
-
-        final isOnRoute = _nearbyRoutes.any((route) {
-          try {
-            final polyline = (route['polyline'] as List<List<double>>);
-            return _isNearRoute(position, polyline, distanceThreshold: 50);
-          } catch (e) {
-            print('Error checking route: $e');
-            return false;
-          }
-        });
-
-        if (_status == 'passive' && speed > 5 && isOnRoute) {
-          _status = 'active';
-          _initializeReport(position);
-        }
-
-        if (_status == 'active') {
-          if (isOnRoute) {
-            _activeTime += 5;
-          } else {
-            _status = 'passive';
-          }
-        }
-        if (_lastPosition == position) {
-          if (_stopsMade.isEmpty || _stopsMade.last != position) {
-            _stopsMade.add(position);
-            print('New stop added to stops_made: $_stopsMade');
-          }
-        }
-        
-
-
-        final data = {
-          'report_id': _reportId,
-          'device_id': _deviceId,
-          'route_name': _currentRouteName,
-          'waiting_time': _waitingTime,
-          'active_time': _activeTime,
-          'start_location': {'lat': _startLocation?.latitude, 'lng': _startLocation?.longitude},
-          'last_location': {'lat': position.latitude, 'lng': position.longitude},
-          'avg_speed': _speedCount > 0 ? _totalSpeed / _speedCount : null,
-          'route_trace': _routeTrace.map((latLng) => {'lat': latLng.latitude, 'lng': latLng.longitude}).toList(),
-          'stops_made': _stopsMade.map((latLng) => {'lat': latLng.latitude, 'lng': latLng.longitude}).toList(), 
-
-        };
-
-        if (_reportId != null) {
-          print('Uploading data to Firestore...');
-          await _uploadData(data);
-          print('Data uploaded successfully');
-        }
-
-        _lastPosition = position;
-        _lastTimestamp = DateTime.now();
-      } catch (e) {
-        print('Error updating report: $e');
+void _startLocationSaving() {
+  _uploadTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+    try {
+      final position = await locationRepository.getCurrentLocation();
+      if (position == null || _deviceId == null) {
+        print('Location or device ID unavailable. Skipping upload.');
+        return;
       }
-    });
-  }
 
+      final routes = await _loadRoutesFromJson();
+      _nearbyRoutes = [];
+      String? closestRouteName;
+      double minDistance = double.infinity;
+
+      for (var route in routes) {
+        try {
+          final polyline = (route['polyline'] as List)
+              .map((point) => (point as List).map((e) => e as double).toList())
+              .toList();
+
+          final distance = _calculateMinDistanceToRoute(position, polyline);
+
+          if (distance <= 300) {
+            _nearbyRoutes.add({
+              ...route,
+              'polyline': polyline,
+            });
+            if (distance < minDistance) {
+              minDistance = distance;
+              closestRouteName = route['name'];
+            }
+          }
+        } catch (e) {
+          print('Error parsing route polyline: $e');
+        }
+      }
+
+      _currentRouteName = closestRouteName;
+      print('Closest Route: $_currentRouteName');
+
+      // Calculate speed
+      double speed = 0;
+      if (_lastPosition != null && _lastTimestamp != null) {
+        final timeDiff = DateTime.now().difference(_lastTimestamp!).inSeconds;
+        final distance = _calculateDistance(
+          _lastPosition!.latitude,
+          _lastPosition!.longitude,
+          position.latitude,
+          position.longitude,
+        );
+        speed = (distance / timeDiff) * 3.6; // Convert m/s to km/h
+        _totalDistance += distance;
+        _totalSpeed += speed;
+        _speedCount++;
+      }
+
+      final isOnRoute = _nearbyRoutes.any((route) {
+        try {
+          final polyline = (route['polyline'] as List<List<double>>);
+          return _isNearRoute(position, polyline, distanceThreshold: 50);
+        } catch (e) {
+          print('Error checking route: $e');
+          return false;
+        }
+      });
+
+      // Update active and passive time based on speed and route
+      if (isOnRoute) {
+        if (speed > 20) {
+          _status = 'active';
+          _activeTime += 5; // Increment active time
+          print('Active: Speed is ${speed.toStringAsFixed(2)} km/h');
+        } else {
+          _status = 'passive';
+          _waitingTime += 5; // Increment passive time
+          print('Passive: Speed is ${speed.toStringAsFixed(2)} km/h');
+        }
+      } else {
+        _status = 'passive';
+        print('Not on route. Passive by default.');
+        _waitingTime += 5; // Increment passive time when not on route
+      }
+
+      // Detect and append stops
+      if (_lastPosition == position) {
+        if (_stopsMade.isEmpty || _stopsMade.last != position) {
+          _stopsMade.add(position);
+          print('New stop added to stops_made: $_stopsMade');
+        }
+      }
+
+      final data = {
+        'report_id': _reportId,
+        'device_id': _deviceId,
+        'route_name': _currentRouteName,
+        'waiting_time': _waitingTime,
+        'active_time': _activeTime,
+        'start_location': {'lat': _startLocation?.latitude, 'lng': _startLocation?.longitude},
+        'last_location': {'lat': position.latitude, 'lng': position.longitude},
+        'avg_speed': _speedCount > 0 ? _totalSpeed / _speedCount : null,
+        'route_trace': _routeTrace.map((latLng) => {'lat': latLng.latitude, 'lng': latLng.longitude}).toList(),
+        'stops_made': _stopsMade.map((latLng) => {'lat': latLng.latitude, 'lng': latLng.longitude}).toList(),
+      };
+
+      if (_reportId != null) {
+        print('Uploading data to Firestore...');
+        await _uploadData(data);
+        print('Data uploaded successfully');
+      }
+
+      _lastPosition = position;
+      _lastTimestamp = DateTime.now();
+    } catch (e) {
+      print('Error updating report: $e');
+    }
+  });
+}
   void _startRouteTraceUpdater() {
     _routeTraceTimer = Timer.periodic(const Duration(minutes: 2), (timer) async {
       try {
