@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:pttms/presentation/widgets/bottom_app_bar_widget.dart';
+import 'package:pttms/presentation/widgets/bottom_navbar_widget.dart';
 
 
 class MyApp extends StatelessWidget {
@@ -17,7 +17,7 @@ class MyApp extends StatelessWidget {
             ),
           )
         ),
-        bottomNavigationBar:  BottomAppBarWidget()
+        bottomNavigationBar:  BottomNavBarWidget()
       ),
     );
   }
