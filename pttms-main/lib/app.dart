@@ -6,8 +6,8 @@ import 'package:pttms/presentation/screens/routes_page.dart';
 import 'package:pttms/presentation/widgets/bottom_navbar_widget.dart';
 
 List<Widget> pages = [
-  HomePage(),
-  RoutesPage(),
+  const HomePage(),
+  const RoutesPage(),
 ];
 
 class MyApp extends StatelessWidget {
@@ -21,11 +21,10 @@ class MyApp extends StatelessWidget {
         home: Scaffold(
           body: BlocBuilder<MenuBloc, MenuState>(
             builder: (context, state) {
-              int selectedIndex = 0; 
               if (state is SelectedIndexState) {
-                selectedIndex = state.selectedIndex;
+                return pages[state.selectedIndex];
               }
-              return pages[selectedIndex]; 
+              return pages[0]; 
             },
           ),
           bottomNavigationBar: const BottomNavBarWidget(),

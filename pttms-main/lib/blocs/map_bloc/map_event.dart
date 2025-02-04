@@ -1,12 +1,13 @@
-/*
-abstract class MapEvent extends Equatable{
+part of 'map_bloc.dart';
+
+sealed class MapEvent extends Equatable {
   const MapEvent();
 
   @override
   List<Object> get props => [];
 }
 
-class LoadMap extends MapEvent{}
+class MapLoad extends MapEvent{}
 
 class UpdateCameraPosition extends MapEvent{
   final LatLng position;
@@ -16,4 +17,5 @@ class UpdateCameraPosition extends MapEvent{
   @override
   List<Object> get props => [position];
 }
-*/
+
+

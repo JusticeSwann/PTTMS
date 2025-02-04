@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pttms/presentation/widgets/google_maps_widget.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({ super.key });
@@ -6,9 +7,8 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(
-        child: Text('Home Page'),
-      )
+      body: GoogleMapsWidget()
     );
   }
 }
+

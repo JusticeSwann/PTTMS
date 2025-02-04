@@ -1,16 +1,4 @@
-import 'dart:async';
-import 'dart:convert';
-import 'package:flutter/services.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'map_event.dart';
-import 'map_state.dart';
-import 'package:location_repository/location_repository.dart';
-import 'dart:math';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-
+/*
 class MapBloc extends Bloc<MapEvent, MapState> {
   final LocationRepository locationRepository;
   Timer? _uploadTimer;
@@ -332,3 +320,4 @@ void _startLocationSaving() {
     return super.close();
   }
 }
+*/
