@@ -7,9 +7,10 @@ part 'map_event.dart';
 part 'map_state.dart';
 
 class MapBloc extends Bloc<MapEvent, MapState> {
-  final LocationRepository locationRepository; // Add this
+  final LocationRepository locationRepository;
 
   MapBloc({required this.locationRepository}) : super(MapInitial()) {
+    //on<MapLoad>(_onMapLoad);
     on<MapLoad>(_onMapLoad);
   }
 
