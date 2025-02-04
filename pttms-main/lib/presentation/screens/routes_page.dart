@@ -6,8 +6,28 @@ class RoutesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const Scaffold(
-      body: Center(
-        child: Text('Routes Page'),
+      body: Padding(
+        padding: EdgeInsets.all(8.0),
+        child: Column(
+          children: [
+            Column(
+              children: [
+                SizedBox(height: 30,),
+                Center(
+                  child: DropdownMenu(
+                    dropdownMenuEntries: [
+                      DropdownMenuEntry(value: 1, label: 'label')
+                    ],
+                    leadingIcon: Icon(Icons.location_pin),
+                    width: 300,
+                    hintText: 'Select route',
+                    
+                  ),
+                )
+              ],
+            )
+          ],
+        ),
       )
     );
   }

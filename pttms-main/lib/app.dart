@@ -26,13 +26,15 @@ class MyApp extends StatelessWidget {
         ],
         child: MaterialApp(
           home: Scaffold(
-            body: BlocBuilder<MenuBloc, MenuState>(
-              builder: (context, state) {
-                if (state is SelectedIndexState) {
-                  return pages[state.selectedIndex];
-                }
-                return pages[0];
-              },
+            body: SafeArea(
+              child: BlocBuilder<MenuBloc, MenuState>(
+                builder: (context, state) {
+                  if (state is SelectedIndexState) {
+                    return pages[state.selectedIndex];
+                  }
+                  return pages[0];
+                },
+              ),
             ),
             bottomNavigationBar: const BottomNavBarWidget(),
           ),
