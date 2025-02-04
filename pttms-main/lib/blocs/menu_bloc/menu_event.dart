@@ -1,13 +1,13 @@
 part of 'menu_bloc.dart';
 
-sealed class MenuBlocEvent extends Equatable {
-  const MenuBlocEvent();
+sealed class MenuEvent extends Equatable {
+  const MenuEvent();
 
   @override
   List<Object> get props => [];
 }
 
-class MenuItemSelected extends MenuBlocEvent{
+class MenuItemSelected extends MenuEvent{
   final int selectedIndex;
   const MenuItemSelected({required this.selectedIndex});
 

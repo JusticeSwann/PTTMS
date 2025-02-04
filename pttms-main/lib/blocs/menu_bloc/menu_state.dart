@@ -1,13 +1,13 @@
 part of 'menu_bloc.dart';
 
-sealed class MenuBlocState extends Equatable {
-  const MenuBlocState();
+sealed class MenuState extends Equatable {
+  const MenuState();
   
   @override
   List<Object> get props => [];
 }
 
-class SelectedIndexState extends MenuBlocState{
+class SelectedIndexState extends MenuState{
   final int selectedIndex;
   const SelectedIndexState({required this.selectedIndex});
 
@@ -15,4 +15,4 @@ class SelectedIndexState extends MenuBlocState{
   List<Object> get props => [selectedIndex];
 }
 
-final class MenuBlocInitial extends MenuBlocState {}
+final class MenuBlocInitial extends MenuState {}
