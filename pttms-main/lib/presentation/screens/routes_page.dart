@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pttms/presentation/widgets/routes_selection_widget.dart';
 
 class RoutesPage extends StatelessWidget {
   const RoutesPage({ super.key });
@@ -14,15 +15,7 @@ class RoutesPage extends StatelessWidget {
               children: [
                 SizedBox(height: 30,),
                 Center(
-                  child: DropdownMenu(
-                    dropdownMenuEntries: [
-                      DropdownMenuEntry(value: 1, label: 'label')
-                    ],
-                    leadingIcon: Icon(Icons.location_pin),
-                    width: 300,
-                    hintText: 'Select route',
-                    
-                  ),
+                  child: RoutesSelectionWidget()
                 )
               ],
             )
