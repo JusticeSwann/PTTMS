@@ -7,7 +7,7 @@ sealed class RouteState extends Equatable {
   List<Object> get props => [];
 }
 
-final class RoutePageInitial extends RouteState {}
+final class RouteBlocInitial extends RouteState {}
 
 final class RouteVehicleState extends RouteState {
   final int vehicleTypeIndex;
@@ -18,5 +18,15 @@ final class RouteVehicleState extends RouteState {
   List<Object> get props => [vehicleTypeIndex];
 }
 
-final class RoutesSelectedState extends RouteState {}
+final class RoutesLoading extends RouteState {}
+
+final class RoutesLoaded extends RouteState {
+  final List<Map<String, dynamic>> availableRoutes;
+  const RoutesLoaded({required this.availableRoutes});
+}
+
+final class RoutesLoadError extends RouteState {
+  final String message;
+  const RoutesLoadError(this.message);
+}
 

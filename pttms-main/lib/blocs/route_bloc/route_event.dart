@@ -7,13 +7,13 @@ sealed class RouteEvent extends Equatable {
   List<Object> get props => [];
 }
 
-class RoutesPageLoaded extends RouteEvent{}
 class VehicleTypeSelected extends RouteEvent{
   final List<bool> vehicleType;
   final int vehicleTypeIndex;
   const VehicleTypeSelected({required this.vehicleTypeIndex, required this.vehicleType});
 }
 
-class RouteSelected extends RouteEvent{}
+class RouteDropdownSelected extends RouteEvent{}
 
-class RouteRemoved extends RouteEvent{}
+class RouteLoadEvent extends RouteEvent{}
+

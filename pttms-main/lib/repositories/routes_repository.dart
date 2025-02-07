@@ -1,7 +1,7 @@
 import '../data/data_provider.dart';
 
 class RoutesRepository {
-  final DataProvider _dataProvider;
+  final RoutesDataProvider _dataProvider;
 
   RoutesRepository(this._dataProvider);
 

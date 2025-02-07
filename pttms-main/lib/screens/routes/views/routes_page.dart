@@ -93,7 +93,7 @@ class _RoutesPageState extends State<RoutesPage> {
         title: const Text('Routes Selection'),
       ),
       body: BlocProvider(
-        create: (context) => RoutesBloc(RoutesRepository(DataProvider()))..add(LoadRouteEvent()),
+        create: (context) => RoutesBloc(RoutesRepository(RoutesDataProvider()))..add(LoadRouteEvent()),
         child: BlocBuilder<RoutesBloc, RoutesState>(
           builder: (context, state) {
             if (state is RoutesLoading) {

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:pttms/blocs/route_bloc/route_bloc.dart';
-import 'package:pttms/blocs/routes_bloc/routes_bloc.dart';
 
 class RoutesSelectionWidget extends StatelessWidget {
   const RoutesSelectionWidget({super.key});
@@ -10,15 +9,24 @@ class RoutesSelectionWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const DropdownMenu(
-          dropdownMenuEntries: [DropdownMenuEntry(value: 1, label: 'label')],
-          leadingIcon: Icon(Icons.location_pin),
-          width: 300,
-          hintText: 'Select route',
+        BlocBuilder<RouteBloc, RouteState>(
+          builder: (context, state) {
+            if (state is RoutesLoading){
+              const CircularProgressIndicator();
+            }
+            return const DropdownMenu(
+              dropdownMenuEntries: [
+                DropdownMenuEntry(value: 1, label: 'label')
+              ],
+              leadingIcon: Icon(Icons.location_pin),
+              width: 300,
+              hintText: 'Select route',
+            );
+          },
         ),
         BlocBuilder<RouteBloc, RouteState>(
           builder: (context, state) {
-            if (state is RouteVehicleState){
+            if (state is RouteVehicleState) {
               return Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 100,
@@ -31,12 +39,9 @@ class RoutesSelectionWidget extends StatelessWidget {
                       isSelected: state.vehicleType,
                       borderRadius: BorderRadius.circular(40),
                       onPressed: (int index) {
-                        context.read<RouteBloc>().add(
-                          VehicleTypeSelected(
-                            vehicleTypeIndex: index, 
-                            vehicleType: state.vehicleType
-                          )
-                        );
+                        context.read<RouteBloc>().add(VehicleTypeSelected(
+                            vehicleTypeIndex: index,
+                            vehicleType: state.vehicleType));
                       },
                       fillColor: Colors.transparent,
                       selectedColor: Colors.red,
@@ -61,12 +66,10 @@ class RoutesSelectionWidget extends StatelessWidget {
                 ),
               );
             } else {
-              return const SizedBox();
+              return const SizedBox(); //Might want to replace this later.
             }
           },
-          
         ),
-
       ],
     );
   }
