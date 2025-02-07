@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:location_repository/location_repository.dart';
 import 'package:pttms/blocs/map_bloc/map_bloc.dart';
 import 'package:pttms/blocs/menu_bloc/menu_bloc.dart';
+import 'package:pttms/blocs/route_bloc/route_bloc.dart';
 import 'package:pttms/presentation/screens/home_page.dart';
 import 'package:pttms/presentation/screens/routes_page.dart';
 import 'package:pttms/presentation/widgets/bottom_navbar_widget.dart';
@@ -23,6 +24,7 @@ class MyApp extends StatelessWidget {
         providers: [
           BlocProvider(create: (context) => MenuBloc()),
           BlocProvider(create: (context) => MapBloc(locationRepository: context.read<LocationRepository>())),
+          BlocProvider(create: (context) => RouteBloc())
         ],
         child: MaterialApp(
           home: Scaffold(

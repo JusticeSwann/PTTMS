@@ -10,7 +10,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
   final LocationRepository locationRepository;
 
   MapBloc({required this.locationRepository}) : super(MapInitial()) {
-    //on<MapLoad>(_onMapLoad);
     on<MapLoad>(_onMapLoad);
   }
 

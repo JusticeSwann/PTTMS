@@ -7,7 +7,16 @@ sealed class RouteState extends Equatable {
   List<Object> get props => [];
 }
 
-final class RouteInitial extends RouteState {}
-final class RoutesVehicle extends RouteState {}
-final class RoutesSelected extends RouteState {}
+final class RoutePageInitial extends RouteState {}
+
+final class RouteVehicleState extends RouteState {
+  final int vehicleTypeIndex;
+  final List<bool> vehicleType;
+  const RouteVehicleState({required this.vehicleTypeIndex, required this.vehicleType});
+
+  @override
+  List<Object> get props => [vehicleTypeIndex];
+}
+
+final class RoutesSelectedState extends RouteState {}
 

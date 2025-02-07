@@ -13,4 +13,10 @@ class RoutesRepository {
     final data = await _dataProvider.getRoutes();
     return data.map((route) => route['name'] as String).toList();
   }
+
+  Future<List<String>> fetchRouteVehicleType() async {
+    final data = await _dataProvider.getRoutes();
+    return data.map((route) => route['vehicle_type'] as String).toList();
+  }
+
 }
